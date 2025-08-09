@@ -3,11 +3,32 @@
 ## Current Work Focus
 
 ### Primary Objective
-**Complete Grind 75 dataset upload to Supabase database**
+**Project is now live on GitHub with full repository setup complete**
 
-The app currently has 34+ flashcards in the database but needs all 169 Grind 75 problems to be fully functional. Multiple upload scripts have been created but encountered technical issues.
+The Flutter flashcard app has been successfully migrated to GitHub with proper git MCP server integration for ongoing development workflow automation.
 
-### Recent Changes (Last Session)
+### Recent Changes (Current Session)
+
+#### 1. Git MCP Server Setup ✅
+- **Action**: Installed and configured git MCP server from modelcontextprotocol/servers
+- **Installation**: Used pipx at `/Users/moharnab/.local/bin/mcp-server-git`
+- **Configuration**: Added to `cline_mcp_settings.json` with repository path
+- **Tools Available**: git_status, git_add, git_commit, git_diff, git_log, git_reset, etc.
+- **Status**: ✅ Complete and operational
+
+#### 2. GitHub Repository Creation ✅
+- **Repository**: https://github.com/moharnab123saikia/flashcode
+- **Description**: "A Flutter flashcard app with spaced repetition algorithm for effective learning"
+- **Visibility**: Public repository
+- **Status**: ✅ Complete with all project files pushed
+
+#### 3. Repository Cleanup ✅
+- **Issue**: Build artifacts (Android .gradle, .iml, macOS Pods) were initially included
+- **Resolution**: Removed build artifacts while keeping essential platform configuration
+- **Cleanup**: Proper .gitignore enforcement and repository hygiene
+- **Status**: ✅ Complete - repository follows Flutter best practices
+
+### Previous Session Work
 
 #### 1. Database Schema Cleanup
 - **Action**: Removed week-based organization from database schema
@@ -29,38 +50,51 @@ The app currently has 34+ flashcards in the database but needs all 169 Grind 75 
 
 ### Active Decisions and Considerations
 
-#### Upload Strategy Options
-1. **Flutter App Upload**: Create working Flutter app to batch upload
-   - Pros: Uses existing models and services
-   - Cons: Requires fixing import/type issues
+#### Development Workflow Strategy
+1. **Git MCP Integration**: Use git MCP server for automated workflow
+   - Pros: Seamless commit, push, and repository management
+   - Cons: Learning curve for MCP tools
+   - Status: ✅ Implemented and working
 
-2. **Direct SQL Insertion**: Use Supabase MCP to insert via SQL
-   - Pros: Bypasses Flutter/Dart complications
-   - Cons: Manual JSON formatting, no validation
+2. **Repository Structure**: Keep platform directories vs. build-only approach
+   - Decision: Keep android/, ios/, macos/ with essential config files only
+   - Rationale: Required for Flutter platform support
+   - Implementation: Removed build artifacts, kept configuration
+   - Status: ✅ Complete
 
-3. **Expand Local Data**: Add all 169 problems to grind75_questions.dart
-   - Pros: Consistent with existing pattern
-   - Cons: Large file, manual data entry
+3. **Upload Strategy**: Still need to complete Grind 75 dataset
+   - **Direct SQL Insertion**: Use Supabase MCP to insert via SQL
+   - **Git Workflow**: Now have proper version control for tracking changes
+   - **Current Priority**: Complete dataset upload with git tracking
 
 #### Current Recommendation
-**Proceed with Direct SQL Insertion** - fastest path to completion given time constraints and technical issues with Flutter scripts.
+**Use Git MCP workflow for all development** - now have proper version control and automation tools in place for efficient development.
 
 ### Next Steps (Immediate Priority)
 
 1. **Complete Dataset Upload** (High Priority)
    - Use Supabase MCP to insert remaining ~135 problems directly
-   - Start with most common/important problems first
+   - Track changes using git MCP workflow
    - Verify data integrity after upload
+   - Commit data population progress to repository
 
-2. **Test Core Functionality** (High Priority)
+2. **Development Workflow Enhancement** (High Priority)
+   - Leverage git MCP tools for efficient development
+   - Use proper branching strategy for feature development
+   - Implement commit message standards for better tracking
+   - Utilize repository for collaboration and backup
+
+3. **Test Core Functionality** (High Priority)
    - Verify spaced repetition algorithm works with larger dataset
    - Test study session flow with variety of problems
    - Ensure offline sync functions properly
+   - Document testing results in git commits
 
-3. **Enhanced UI Polish** (Medium Priority)
+4. **Enhanced UI Polish** (Medium Priority)
    - Improve flashcard viewer interface
    - Add progress visualization
    - Implement study mode filters
+   - Track UI improvements through git history
 
 ### Important Patterns and Preferences
 
@@ -75,9 +109,17 @@ The app currently has 34+ flashcards in the database but needs all 169 Grind 75 
 - **Service Layer**: Business logic separation
 
 #### Development Approach
-- **Incremental**: Small, testable changes
+- **Incremental**: Small, testable changes with git tracking
 - **Mobile-First**: Optimize for phone screen and touch interaction
 - **Performance**: Lazy loading, efficient queries
+- **Version Control**: Proper git workflow with meaningful commits
+- **Documentation**: Update memory bank and commit messages regularly
+
+#### Git Workflow Patterns
+- **Clean Repository**: Keep build artifacts out, essential config in
+- **Meaningful Commits**: Clear commit messages describing changes
+- **MCP Integration**: Use git MCP tools for automated workflow
+- **Backup Strategy**: GitHub serves as both collaboration and backup
 
 ### Learnings and Project Insights
 
@@ -86,6 +128,8 @@ The app currently has 34+ flashcards in the database but needs all 169 Grind 75 
 2. **Supabase Integration**: Direct SQL often more reliable than complex Dart serialization
 3. **Data Modeling**: Simple flat structures often better than nested hierarchies
 4. **State Management**: Provider pattern works well for reactive UI updates
+5. **Git MCP Integration**: Automated git workflow significantly improves development efficiency
+6. **Repository Management**: Proper .gitignore and artifact exclusion critical for clean repos
 
 #### Product Insights
 1. **User Focus**: Quick access to next problem more important than complex organization
@@ -98,6 +142,8 @@ The app currently has 34+ flashcards in the database but needs all 169 Grind 75 
 2. **Data Strategy**: Establish data pipeline early in development
 3. **Testing on Device**: Simulator/emulator doesn't catch all issues
 4. **Documentation**: Memory bank system essential for context continuity
+5. **Version Control**: Early git setup prevents lost work and enables collaboration
+6. **MCP Tools**: Leverage MCP servers for workflow automation and efficiency
 
 ### Current Blockers
 
@@ -109,6 +155,12 @@ The app currently has 34+ flashcards in the database but needs all 169 Grind 75 
 #### Process Blockers
 - **Data Source**: No definitive source for all 169 Grind 75 problems with solutions
 - **Time Constraints**: Manual data entry would take significant time
+
+#### Resolved Blockers ✅
+- **Version Control**: ✅ Git repository setup complete with GitHub integration
+- **Development Workflow**: ✅ Git MCP server provides automated workflow tools
+- **Repository Structure**: ✅ Clean repository following Flutter best practices
+- **Backup Strategy**: ✅ Code safely backed up to GitHub with proper history
 
 ### Risk Assessment
 
@@ -127,6 +179,9 @@ The app currently has 34+ flashcards in the database but needs all 169 Grind 75 
 ### Success Metrics for This Phase
 
 #### Immediate (Next Session)
+- [x] Git MCP server setup and operational ✅
+- [x] GitHub repository created and populated ✅
+- [x] Repository cleanup and Flutter best practices ✅
 - [ ] All 169 Grind 75 problems in Supabase database
 - [ ] Successful test of study session with diverse problems
 - [ ] Verified spaced repetition algorithm with larger dataset
@@ -135,8 +190,10 @@ The app currently has 34+ flashcards in the database but needs all 169 Grind 75 
 - [ ] Enhanced UI for better user experience
 - [ ] Performance optimization for large dataset
 - [ ] Comprehensive testing on mobile devices
+- [ ] Establish regular git workflow for feature development
 
 #### Medium Term (Next Month)
 - [ ] User authentication and cloud sync
 - [ ] Advanced study modes and filtering
 - [ ] Analytics and progress tracking
+- [ ] Collaborative development workflow using GitHub

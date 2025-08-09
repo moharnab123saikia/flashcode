@@ -37,6 +37,9 @@
 - **Code Generation**: JSON serialization with build_runner
 - **Linting**: Flutter analysis options with consistent code style
 - **Version Control**: Git setup with proper .gitignore configuration
+- **Git MCP Integration**: Automated git workflow with MCP server tools
+- **GitHub Repository**: Public repository with complete project backup
+- **Repository Hygiene**: Clean repo structure following Flutter best practices
 
 ## What's Left to Build
 
@@ -109,9 +112,10 @@
 ## Current Status Summary
 
 ### Development Phase
-**Phase 1 (MVP)**: 75% Complete
+**Phase 1 (MVP)**: 80% Complete
 - Core infrastructure: ✅ Complete
 - Basic functionality: ✅ Complete
+- Version control & workflow: ✅ Complete (Git MCP + GitHub)
 - Data population: 🔄 20% (34/169 problems)
 - UI polish: 🔄 40% (basic components done)
 - Error handling: 📋 10% (minimal implementation)
@@ -148,6 +152,8 @@
 **State Management**: Provider over BLoC for simpler learning curve and faster development
 **Architecture**: Repository pattern for testability and offline-first requirements
 **UI Framework**: Material Design for consistent cross-platform experience
+**Version Control**: Git with MCP server integration for automated workflow
+**Repository Hosting**: GitHub for backup, collaboration, and project visibility
 
 ### Lessons Learned
 1. **Start Simple**: Complex data structures create more problems than they solve

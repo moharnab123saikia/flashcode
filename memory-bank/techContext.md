@@ -22,8 +22,10 @@
 - **VS Code**: Primary IDE with Flutter extensions
 - **Android Studio**: Android emulator and debugging
 - **Xcode**: iOS simulation and deployment
-- **Git**: Version control
-- **GitHub**: Repository hosting
+- **Git**: Version control with MCP server integration
+- **GitHub**: Repository hosting (https://github.com/moharnab123saikia/flashcode)
+- **Git MCP Server**: Automated workflow tools for git operations
+- **MCP Installation**: Located at `/Users/moharnab/.local/bin/mcp-server-git`
 
 ## Architecture Patterns
 
