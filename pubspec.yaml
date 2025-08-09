@@ -1,0 +1,69 @@
+name: flashcode
+description: "Master coding interviews with spaced repetition flashcards"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Core UI
+  cupertino_icons: ^1.0.8
+  
+  # Firebase - commented out for now to avoid compilation issues
+  # firebase_core: ^2.24.2
+  # firebase_auth: ^4.15.3
+  # cloud_firestore: ^4.13.6
+  # firebase_storage: ^11.5.6
+  
+  # Social Authentication - commented out for now
+  # google_sign_in: ^6.1.6
+  # sign_in_with_apple: ^5.0.0
+  
+  # State Management
+  provider: ^6.1.1
+  
+  # Local Storage
+  sqflite: ^2.3.0
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.1
+  
+  # UI Components
+  flip_card: ^0.7.0
+  flutter_card_swiper: ^7.0.0
+  flutter_animation_progress_bar: ^2.3.1
+  percent_indicator: ^4.2.3
+  
+  # Code Syntax Highlighting
+  flutter_highlight: ^0.7.0
+  google_fonts: ^6.1.0
+  
+  # Utilities
+  intl: ^0.18.1
+  uuid: ^4.2.2
+  collection: ^1.18.0
+  
+  # HTTP for API calls
+  http: ^1.1.2
+  supabase_flutter: ^2.5.6
+  
+  # JSON serialization
+  json_annotation: ^4.8.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.7
+  json_serializable: ^6.7.1
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/data/
+    - assets/images/
+    - assets/icons/
