@@ -26,8 +26,23 @@ class SyncService {
       debugPrint('Found ${localCards.length} local cards');
       
       if (localCards.isEmpty) {
-        debugPrint('No local cards found, loading sample data...');
-        // Load sample data
+        // Check if Supabase already has data before loading sample data
+        try {
+          final remoteCards = await _supabase.pullFlashcards();
+          debugPrint('Found ${remoteCards.length} remote cards');
+          
+          if (remoteCards.isNotEmpty) {
+            debugPrint('Remote data exists, syncing to local...');
+            await _localDb.upsertFlashcards(remoteCards);
+            debugPrint('Successfully synced ${remoteCards.length} cards from Supabase!');
+            return;
+          }
+        } catch (e) {
+          debugPrint('Failed to check remote data: $e');
+        }
+        
+        debugPrint('No local or remote cards found, loading sample data...');
+        // Load sample data only if both local and remote are empty
         final sampleCards = SampleFlashcards.getAllCards();
         debugPrint('Loaded ${sampleCards.length} sample cards');
         

@@ -3,9 +3,10 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/flashcard_provider.dart';
 import '../../models/study_session.dart';
-import '../../services/grind75_importer.dart';
 import '../../utils/theme.dart';
 import '../study/study_screen.dart';
+import '../profile/profile_screen.dart';
+import '../explore/explore_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,11 +21,44 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize mock data
+    // Initialize sample data
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthProvider>().initMockUser();
       context.read<FlashcardProvider>().initializeSampleData();
     });
+  }
+
+  void _navigateToProfile(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ProfileScreen(),
+      ),
+    );
+  }
+
+  void _handleLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Sign Out'),
+          content: const Text('Are you sure you want to sign out?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop(); // Close dialog
+                await context.read<AuthProvider>().signOut();
+              },
+              child: const Text('Sign Out'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -39,11 +73,40 @@ class _HomeScreenState extends State<HomeScreen> {
               // TODO: Implement search
             },
           ),
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.account_circle),
-            onPressed: () {
-              // TODO: Show profile
+            onSelected: (value) {
+              switch (value) {
+                case 'profile':
+                  _navigateToProfile(context);
+                  break;
+                case 'logout':
+                  _handleLogout(context);
+                  break;
+              }
             },
+            itemBuilder: (BuildContext context) => [
+              PopupMenuItem<String>(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    const Icon(Icons.person),
+                    const SizedBox(width: 8),
+                    Text('Profile'),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    const Icon(Icons.logout),
+                    const SizedBox(width: 8),
+                    Text('Sign Out'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -52,42 +115,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: const [
           DashboardView(),
           StudyModesView(),
-          ProgressView(),
+          ExploreScreen(),
           LibraryView(),
         ],
       ),
-      floatingActionButton: _selectedIndex == 0 ? FloatingActionButton.extended(
-        onPressed: () async {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Importing Grind75 questions...')),
-          );
-          
-          try {
-            await Grind75Importer.importGrind75Questions();
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('✅ Grind75 questions imported successfully!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              // Refresh the flashcard provider
-              context.read<FlashcardProvider>().initializeSampleData();
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('❌ Import failed: $e'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-        icon: const Icon(Icons.download),
-        label: const Text('Import Grind75'),
-      ) : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
@@ -105,8 +136,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Study',
           ),
           NavigationDestination(
-            icon: Icon(Icons.trending_up),
-            label: 'Progress',
+            icon: Icon(Icons.explore),
+            label: 'Explore',
           ),
           NavigationDestination(
             icon: Icon(Icons.library_books),
@@ -196,7 +227,7 @@ class DashboardView extends StatelessWidget {
                 ),
                 _buildQuickActionCard(
                   context,
-                  'Continue\nGrind 75',
+                  'Study\nCourse',
                   Icons.play_arrow,
                   AppTheme.successColor,
                   () {
@@ -479,9 +510,9 @@ class ProgressView extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // Grind 75 Progress
+          // Course Progress
           Text(
-            'Grind 75 Progress',
+            'Course Progress',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
@@ -621,7 +652,8 @@ class LibraryView extends StatelessWidget {
                       card.leetcodeNumber,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 12,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
