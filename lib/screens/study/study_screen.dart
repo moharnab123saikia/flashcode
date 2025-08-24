@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/flashcard.dart';
@@ -26,6 +27,11 @@ class _StudyScreenState extends State<StudyScreen> {
   int _currentIndex = 0;
   bool _isLoading = true;
   DateTime? _sessionStartTime;
+  DateTime? _cardStartTime;
+  Duration _timeLimit = const Duration(minutes: 5); // 5 minutes per card for timed mode
+  Duration _remainingTime = const Duration(minutes: 5);
+  bool _isTimedMode = false;
+  Timer? _timer;
 
   @override
   void initState() {
@@ -71,13 +77,13 @@ class _StudyScreenState extends State<StudyScreen> {
             )).toList();
             break;
           case 'grind75':
-            // Convert FlashcardWithProgress to Flashcard
+            // Convert FlashcardWithProgress to Flashcard - show all cards in sequential order
             _cards = flashcardProvider.flashcards.map((card) => Flashcard(
               id: card.id,
               title: card.title,
               question: card.question,
               hint: card.hint,
-              solutions: card.solutions.map((key, value) => MapEntry(key, 
+              solutions: card.solutions.map((key, value) => MapEntry(key,
                 CodeSolution.fromJson(value as Map<String, dynamic>))),
               dataStructureCategory: card.dataStructureCategory,
               algorithmPattern: card.algorithmPattern,
@@ -93,6 +99,36 @@ class _StudyScreenState extends State<StudyScreen> {
               lastReviewedAt: card.lastReviewedAt,
               createdAt: card.createdAt,
             )).toList();
+            break;
+          case 'category':
+            // Show category selection dialog
+            _showCategorySelection(context, flashcardProvider);
+            return;
+          case 'timed':
+            // Get random cards for timed challenge
+            final allCards = flashcardProvider.flashcards.map((card) => Flashcard(
+              id: card.id,
+              title: card.title,
+              question: card.question,
+              hint: card.hint,
+              solutions: card.solutions.map((key, value) => MapEntry(key,
+                CodeSolution.fromJson(value as Map<String, dynamic>))),
+              dataStructureCategory: card.dataStructureCategory,
+              algorithmPattern: card.algorithmPattern,
+              predefinedDifficulty: card.predefinedDifficulty,
+              leetcodeNumber: card.leetcodeNumber,
+              tags: card.tags,
+              companies: card.companies,
+              personalDifficulty: card.personalDifficulty,
+              reviewCount: card.reviewCount,
+              easeFactor: card.easeFactor,
+              interval: card.intervalDays,
+              nextReview: card.nextReview,
+              lastReviewedAt: card.lastReviewedAt,
+              createdAt: card.createdAt,
+            )).toList();
+            allCards.shuffle();
+            _cards = allCards.take(5).toList(); // 5 cards for timed challenge
             break;
           case 'random':
             final allCards = flashcardProvider.flashcards.map((card) => Flashcard(
@@ -146,6 +182,7 @@ class _StudyScreenState extends State<StudyScreen> {
         if (mounted) {
           setState(() {
             _isLoading = false;
+            _isTimedMode = widget.mode == 'timed';
           });
           _startSession();
         }
@@ -166,17 +203,62 @@ class _StudyScreenState extends State<StudyScreen> {
           mode: widget.mode,
         );
       }
+      
+      // Start timer for first card if in timed mode
+      if (_isTimedMode) {
+        _startCardTimer();
+      }
     }
   }
 
   void _nextCard() {
+    _stopTimer();
     if (_currentIndex < _cards.length - 1) {
       setState(() {
         _currentIndex++;
       });
+      if (_isTimedMode) {
+        _startCardTimer();
+      }
     } else {
       _showSessionComplete();
     }
+  }
+
+  void _startCardTimer() {
+    if (!_isTimedMode) return;
+    
+    _cardStartTime = DateTime.now();
+    _remainingTime = _timeLimit;
+    
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _remainingTime = _timeLimit - DateTime.now().difference(_cardStartTime!);
+          if (_remainingTime.inSeconds <= 0) {
+            _remainingTime = Duration.zero;
+            _handleTimeUp();
+          }
+        });
+      }
+    });
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  void _handleTimeUp() {
+    _stopTimer();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Time\'s up! Moving to next card.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    // Auto-advance to next card
+    _nextCard();
   }
 
   void _previousCard() {
@@ -290,16 +372,101 @@ class _StudyScreenState extends State<StudyScreen> {
     );
   }
 
+  void _showCategorySelection(BuildContext context, FlashcardProviderV2 flashcardProvider) {
+    final categories = flashcardProvider.flashcards
+        .map((card) => card.dataStructureCategory)
+        .toSet()
+        .toList()
+        ..sort();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Category'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final category = categories[index];
+              final categoryCards = flashcardProvider.flashcards
+                  .where((card) => card.dataStructureCategory == category)
+                  .length;
+              
+              return ListTile(
+                title: Text(category),
+                subtitle: Text('$categoryCards cards'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _loadCategoryCards(flashcardProvider, category);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Go back to home screen if user cancels category selection
+              Navigator.of(context).pop();
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    ).then((_) {
+      // If dialog is dismissed without selection (e.g., back button), go back to home
+      if (mounted && _isLoading) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
+  void _loadCategoryCards(FlashcardProviderV2 flashcardProvider, String category) {
+    _cards = flashcardProvider.flashcards
+        .where((card) => card.dataStructureCategory == category)
+        .map((card) => Flashcard(
+          id: card.id,
+          title: card.title,
+          question: card.question,
+          hint: card.hint,
+          solutions: card.solutions.map((key, value) => MapEntry(key,
+            CodeSolution.fromJson(value as Map<String, dynamic>))),
+          dataStructureCategory: card.dataStructureCategory,
+          algorithmPattern: card.algorithmPattern,
+          predefinedDifficulty: card.predefinedDifficulty,
+          leetcodeNumber: card.leetcodeNumber,
+          tags: card.tags,
+          companies: card.companies,
+          personalDifficulty: card.personalDifficulty,
+          reviewCount: card.reviewCount,
+          easeFactor: card.easeFactor,
+          interval: card.intervalDays,
+          nextReview: card.nextReview,
+          lastReviewedAt: card.lastReviewedAt,
+          createdAt: card.createdAt,
+        )).toList();
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      _startSession();
+    }
+  }
+
   String _getModeDisplayName(String mode) {
     switch (mode) {
       case 'grind75':
-        return 'Linear';
+        return 'Sequential Study';
       case 'review':
         return 'Review';
       case 'random':
         return 'Random';
       case 'timed':
-        return 'Timed';
+        return 'Timed Challenge';
       case 'category':
         return 'Category';
       default:
@@ -309,6 +476,9 @@ class _StudyScreenState extends State<StudyScreen> {
 
   @override
   void dispose() {
+    // Clean up timer
+    _stopTimer();
+    
     // Complete session if still active when leaving screen
     // Use try-catch to handle cases where context is no longer available
     try {
@@ -375,13 +545,44 @@ class _StudyScreenState extends State<StudyScreen> {
       ),
       body: Column(
         children: [
-          // Progress indicator
-          LinearProgressIndicator(
-            value: (_currentIndex + 1) / _cards.length,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              AppTheme.primaryColor,
-            ),
+          // Progress indicator and timer
+          Column(
+            children: [
+              LinearProgressIndicator(
+                value: (_currentIndex + 1) / _cards.length,
+                backgroundColor: Colors.grey[300],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppTheme.primaryColor,
+                ),
+              ),
+              if (_isTimedMode) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: _remainingTime.inSeconds <= 30
+                      ? Colors.red.withOpacity(0.1)
+                      : Colors.blue.withOpacity(0.1),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.timer,
+                        color: _remainingTime.inSeconds <= 30 ? Colors.red : Colors.blue,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Time remaining: ${_remainingTime.inMinutes}:${(_remainingTime.inSeconds % 60).toString().padLeft(2, '0')}',
+                        style: TextStyle(
+                          color: _remainingTime.inSeconds <= 30 ? Colors.red : Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
           // Flashcard viewer
           Expanded(

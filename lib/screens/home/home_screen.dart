@@ -232,7 +232,7 @@ class DashboardView extends StatelessWidget {
                 ),
                 _buildQuickActionCard(
                   context,
-                  'Study\nCourse',
+                  'Sequential\nStudy',
                   Icons.play_arrow,
                   AppTheme.successColor,
                   () {

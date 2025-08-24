@@ -114,11 +114,10 @@ class SupabaseServiceV2 {
     if (progressList.isEmpty) return;
     
     try {
-      final payload = progressList.map((progress) => _convertProgressToRow(progress)).toList();
-      
-      await client
-          .from('user_flashcard_progress')
-          .upsert(payload, onConflict: 'user_id,flashcard_id');
+      // Process each progress record individually to handle conflicts better
+      for (final progress in progressList) {
+        await upsertSingleFlashcardProgress(progress);
+      }
       
       debugPrint('Successfully upserted ${progressList.length} progress records');
     } catch (e) {
@@ -130,11 +129,30 @@ class SupabaseServiceV2 {
   /// Upsert single flashcard progress
   Future<void> upsertSingleFlashcardProgress(FlashcardProgress progress) async {
     try {
+      // First, try to find existing record
+      final existing = await client
+          .from('user_flashcard_progress')
+          .select('id')
+          .eq('user_id', progress.userId)
+          .eq('flashcard_id', progress.flashcardId)
+          .maybeSingle();
+      
       final payload = _convertProgressToRow(progress);
       
-      await client
-          .from('user_flashcard_progress')
-          .upsert(payload, onConflict: 'user_id,flashcard_id');
+      if (existing != null) {
+        // Update existing record
+        payload['id'] = existing['id'];
+        await client
+            .from('user_flashcard_progress')
+            .update(payload)
+            .eq('id', existing['id']);
+      } else {
+        // Insert new record
+        payload.remove('id'); // Ensure no conflicting ID
+        await client
+            .from('user_flashcard_progress')
+            .insert(payload);
+      }
       
       debugPrint('Successfully upserted progress for card ${progress.flashcardId}');
     } catch (e) {
@@ -367,7 +385,7 @@ class SupabaseServiceV2 {
 
   /// Convert FlashcardProgress to database format
   Map<String, dynamic> _convertProgressToRow(FlashcardProgress progress) {
-    return {
+    final row = {
       'user_id': progress.userId,
       'flashcard_id': progress.flashcardId,
       'personal_difficulty': progress.personalDifficulty,
@@ -378,6 +396,13 @@ class SupabaseServiceV2 {
       'last_reviewed_at': progress.lastReviewedAt?.toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
     };
+    
+    // Include ID only if it exists (for updates)
+    if (progress.id != null && progress.id!.isNotEmpty) {
+      row['id'] = progress.id;
+    }
+    
+    return row;
   }
 
   /// Convert combined view row to FlashcardWithProgress format
