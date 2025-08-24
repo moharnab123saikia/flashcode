@@ -347,6 +347,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Detect conflicts specifically during login
+  /// ONLY for flashcard progress - profile data always uses cloud as source
   Future<SyncConflict?> _detectLoginConflict(
     String userId,
     UserProfile? localProfile,
@@ -354,39 +355,40 @@ class AuthProvider extends ChangeNotifier {
     UserProfile? cloudProfile,
     List<FlashcardProgress> cloudProgress,
   ) async {
-    bool hasConflict = false;
+    // NEVER conflict on profile data - cloud is always authoritative
+    // ONLY check flashcard progress for conflicts
     
-    // Check profile conflicts
-    if (localProfile != null && cloudProfile != null) {
-      if (localProfile.currentStreak != cloudProfile.currentStreak ||
-          localProfile.totalCardsStudied != cloudProfile.totalCardsStudied ||
-          _daysDifference(localProfile.lastStudyDate, cloudProfile.lastStudyDate) > 0) {
-        hasConflict = true;
-      }
+    if (localProgress.isEmpty || cloudProgress.isEmpty) {
+      return null; // No conflict if either side has no progress
     }
     
-    // Check progress conflicts (significant differences)
-    if (localProgress.length != cloudProgress.length) {
-      hasConflict = true;
-    } else {
-      // Check for meaningful progress differences
-      final localProgressMap = {for (var p in localProgress) p.flashcardId: p};
-      for (final cloudProg in cloudProgress) {
-        final localProg = localProgressMap[cloudProg.flashcardId];
-        if (localProg != null) {
-          if ((localProg.reviewCount - cloudProg.reviewCount).abs() > 2 ||
-              localProg.personalDifficulty != cloudProg.personalDifficulty) {
-            hasConflict = true;
-            break;
-          }
+    bool hasProgressConflict = false;
+    
+    // Create maps for efficient lookup
+    final localProgressMap = {for (var p in localProgress) p.flashcardId: p};
+    final cloudProgressMap = {for (var p in cloudProgress) p.flashcardId: p};
+    
+    // Check for meaningful progress differences
+    for (final flashcardId in {...localProgressMap.keys, ...cloudProgressMap.keys}) {
+      final localProg = localProgressMap[flashcardId];
+      final cloudProg = cloudProgressMap[flashcardId];
+      
+      // Only conflict if card exists on both sides with significant differences
+      if (localProg != null && cloudProg != null) {
+        if ((localProg.reviewCount - cloudProg.reviewCount).abs() > 2 ||
+            localProg.personalDifficulty != cloudProg.personalDifficulty ||
+            _daysDifference(localProg.lastReviewedAt, cloudProg.lastReviewedAt) > 3) {
+          hasProgressConflict = true;
+          debugPrint('Login progress conflict detected for card $flashcardId');
+          break;
         }
       }
     }
     
-    if (hasConflict) {
+    if (hasProgressConflict) {
       return SyncConflict(
         localProfile: localProfile,
-        cloudProfile: cloudProfile,
+        cloudProfile: cloudProfile, // Cloud profile will be used regardless
         localProgress: localProgress,
         cloudProgress: cloudProgress,
       );

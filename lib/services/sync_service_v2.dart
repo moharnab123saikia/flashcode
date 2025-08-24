@@ -287,7 +287,9 @@ class SyncServiceV2 {
   // CONFLICT RESOLUTION
   // ============================================
 
-  /// Detect sync conflicts
+  /// Hybrid Approach: Intelligent conflict detection with auto-merge capabilities
+  /// Profile data: Cloud-first with local preferences override
+  /// Progress data: Time-based resolution with conflict detection for significant differences
   Future<SyncConflict?> _detectConflicts(String userId) async {
     try {
       // Get local data
@@ -297,7 +299,6 @@ class SyncServiceV2 {
       // Get cloud data
       final cloudProfile = await _supabase.getUserProfile(userId);
       final cloudProgress = await _supabase.getUserFlashcardProgress(userId);
-      final cloudMetadata = await _supabase.getSyncMetadata(userId);
 
       // No conflict if no cloud data exists
       if (cloudProfile == null && cloudProgress.isEmpty) {
@@ -309,44 +310,80 @@ class SyncServiceV2 {
         return null;
       }
 
-      // Check for data conflicts
-      bool hasConflict = false;
+      // HYBRID APPROACH: Analyze conflicts with time-based resolution
+      final now = DateTime.now();
+      bool hasSignificantConflict = false;
+      List<String> conflictingCards = [];
 
-      // Profile conflicts
-      if (localProfile != null && cloudProfile != null) {
-        if (localProfile.currentStreak != cloudProfile.currentStreak ||
-            localProfile.totalCardsStudied != cloudProfile.totalCardsStudied ||
-            (localProfile.lastStudyDate?.millisecondsSinceEpoch ?? 0) != 
-            (cloudProfile.lastStudyDate?.millisecondsSinceEpoch ?? 0)) {
-          hasConflict = true;
+      if (localProgress.isNotEmpty && cloudProgress.isNotEmpty) {
+        // Create maps for efficient lookup
+        final localProgressMap = {for (var p in localProgress) p.flashcardId: p};
+        final cloudProgressMap = {for (var p in cloudProgress) p.flashcardId: p};
+
+        // Check for progress conflicts with intelligent thresholds
+        for (final flashcardId in {...localProgressMap.keys, ...cloudProgressMap.keys}) {
+          final localProg = localProgressMap[flashcardId];
+          final cloudProg = cloudProgressMap[flashcardId];
+
+          // Card exists in both - apply hybrid conflict detection
+          if (localProg != null && cloudProg != null) {
+            final lastReviewDiff = _daysDifference(localProg.lastReviewedAt, cloudProg.lastReviewedAt);
+            final reviewCountDiff = (localProg.reviewCount - cloudProg.reviewCount).abs();
+            
+            // HYBRID CRITERIA:
+            // 1. Recent activity (< 24hrs) → Auto-merge intelligently
+            // 2. Significant conflicts → User choice
+            // 3. Minor differences → Auto-merge
+            
+            bool isRecentActivity = lastReviewDiff <= 1; // Within 24 hours
+            bool hasSignificantDifference = reviewCountDiff > 3 ||
+                                          localProg.personalDifficulty != cloudProg.personalDifficulty;
+            bool hasMajorTimeDrift = lastReviewDiff > 7; // More than a week apart
+            
+            // Only flag as conflict if:
+            // - Significant differences AND not recent activity
+            // - OR major time drift with any differences
+            if ((hasSignificantDifference && !isRecentActivity) ||
+                (hasMajorTimeDrift && reviewCountDiff > 1)) {
+              hasSignificantConflict = true;
+              conflictingCards.add(flashcardId);
+              debugPrint('🚨 Hybrid conflict detected for card $flashcardId: '
+                        'reviewDiff=$reviewCountDiff, timeDiff=${lastReviewDiff}d, '
+                        'Local(reviews=${localProg.reviewCount}, diff=${localProg.personalDifficulty}) vs '
+                        'Cloud(reviews=${cloudProg.reviewCount}, diff=${cloudProg.personalDifficulty})');
+            } else if (reviewCountDiff > 0 || localProg.personalDifficulty != cloudProg.personalDifficulty) {
+              // Auto-merge candidate - log for debugging
+              debugPrint('✨ Auto-merge candidate for card $flashcardId: '
+                        'reviewDiff=$reviewCountDiff, timeDiff=${lastReviewDiff}d');
+            }
+          }
+          // Cards that exist only locally or only in cloud are always auto-merged
         }
       }
 
-      // Progress conflicts (simplified check)
-      if (localProgress.length != cloudProgress.length) {
-        hasConflict = true;
-      }
-
-      // Check last sync timestamp
-      if (cloudMetadata != null && _deviceId != cloudMetadata.deviceId) {
-        // Different device, potential conflict
-        hasConflict = true;
-      }
-
-      if (hasConflict) {
+      if (hasSignificantConflict) {
+        debugPrint('🔥 Significant conflicts detected for ${conflictingCards.length} cards: ${conflictingCards.join(", ")}');
         return SyncConflict(
           localProfile: localProfile,
-          cloudProfile: cloudProfile,
+          cloudProfile: cloudProfile, // Cloud profile is always authoritative
           localProgress: localProgress,
           cloudProgress: cloudProgress,
         );
       }
 
+      // No significant conflicts - auto-merge will be performed
+      debugPrint('✅ No significant conflicts detected - proceeding with hybrid auto-merge');
       return null;
     } catch (e) {
       debugPrint('Error detecting conflicts: $e');
       rethrow;
     }
+  }
+
+  /// Helper method to calculate days difference between two nullable dates
+  int _daysDifference(DateTime? date1, DateTime? date2) {
+    if (date1 == null || date2 == null) return 0;
+    return (date1.difference(date2).inDays).abs();
   }
 
   /// Resolve conflict using specified strategy
@@ -455,21 +492,38 @@ class SyncServiceV2 {
   // HELPER METHODS
   // ============================================
 
-  /// Perform sync without conflict detection
+  /// HYBRID SYNC: Intelligent auto-merge without conflict detection
+  /// Implements cloud-first profile data with smart progress merging
   Future<void> _performSync(String userId) async {
-    // Get local data
+    debugPrint('🔄 Starting hybrid sync for user $userId');
+    
+    // Get local and cloud data
     final localProfile = await _localDb.getUserProfile();
     final localProgress = await _localDb.getAllFlashcardProgress();
-    
-    // Upload to cloud
-    if (localProfile != null) {
-      await _supabase.upsertUserProfile(localProfile.copyWith(userId: userId));
+    final cloudProfile = await _supabase.getUserProfile(userId);
+    final cloudProgress = await _supabase.getUserFlashcardProgress(userId);
+
+    // HYBRID PROFILE SYNC: Cloud-first with local preference preservation
+    UserProfile? syncedProfile;
+    if (cloudProfile != null || localProfile != null) {
+      syncedProfile = _hybridMergeProfile(userId, localProfile, cloudProfile);
+      
+      // Save locally and upload to cloud
+      if (syncedProfile != null) {
+        await _localDb.saveUserProfile(syncedProfile);
+        await _supabase.upsertUserProfile(syncedProfile);
+      }
     }
-    
-    if (localProgress.isNotEmpty) {
-      final progressWithUserId = localProgress.map((p) => 
-        p.copyWith(userId: userId)).toList();
-      await _supabase.upsertFlashcardProgress(progressWithUserId);
+
+    // HYBRID PROGRESS SYNC: Intelligent time-based merging
+    if (localProgress.isNotEmpty || cloudProgress.isNotEmpty) {
+      final mergedProgress = _hybridMergeProgress(userId, localProgress, cloudProgress);
+      
+      // Save locally and upload to cloud
+      if (mergedProgress.isNotEmpty) {
+        await _localDb.saveFlashcardProgressBatch(mergedProgress);
+        await _supabase.upsertFlashcardProgress(mergedProgress);
+      }
     }
 
     // Update sync metadata
@@ -479,6 +533,109 @@ class SyncServiceV2 {
       lastSyncTimestamp: DateTime.now(),
     );
     await _supabase.upsertSyncMetadata(metadata);
+    
+    debugPrint('✅ Hybrid sync completed successfully');
+  }
+
+  /// Hybrid profile merge: Cloud-first with local preferences
+  UserProfile? _hybridMergeProfile(String userId, UserProfile? local, UserProfile? cloud) {
+    if (cloud == null && local == null) return null;
+    if (cloud == null) return local?.copyWith(userId: userId);
+    if (local == null) return cloud;
+
+    // Cloud data is authoritative for account data
+    // Local preferences override cloud where appropriate
+    return UserProfile(
+      userId: userId,
+      displayName: cloud.displayName, // Cloud authoritative
+      currentStreak: cloud.currentStreak, // Cloud authoritative
+      longestStreak: _max(local.longestStreak, cloud.longestStreak), // Take max
+      totalCardsStudied: cloud.totalCardsStudied, // Cloud authoritative
+      lastStudyDate: cloud.lastStudyDate, // Cloud authoritative
+      settings: UserSettings(
+        cloudSyncEnabled: cloud.settings.cloudSyncEnabled, // Cloud authoritative
+        notificationsEnabled: local.settings.notificationsEnabled, // Local preference
+        notificationTime: local.settings.notificationTime, // Local preference
+        dailyGoal: local.settings.dailyGoal, // Local preference
+        sessionDuration: local.settings.sessionDuration, // Local preference
+        theme: local.settings.theme, // Local preference
+        defaultLanguage: local.settings.defaultLanguage, // Local preference
+        codeFontSize: local.settings.codeFontSize, // Local preference
+        spacedRepetitionAlgorithm: local.settings.spacedRepetitionAlgorithm, // Local preference
+      ),
+    );
+  }
+
+  /// Hybrid progress merge: Time-based intelligent merging
+  List<FlashcardProgress> _hybridMergeProgress(String userId,
+      List<FlashcardProgress> local, List<FlashcardProgress> cloud) {
+    
+    final mergedProgress = <String, FlashcardProgress>{};
+    final now = DateTime.now();
+
+    // Add all local progress first
+    for (final progress in local) {
+      mergedProgress[progress.flashcardId] = progress.copyWith(userId: userId);
+    }
+
+    // Merge cloud progress with hybrid logic
+    for (final cloudProg in cloud) {
+      final localProg = mergedProgress[cloudProg.flashcardId];
+      
+      if (localProg == null) {
+        // Card only exists in cloud - add it
+        mergedProgress[cloudProg.flashcardId] = cloudProg.copyWith(userId: userId);
+      } else {
+        // Card exists in both - apply hybrid merge logic
+        final timeDiff = _daysDifference(localProg.lastReviewedAt, cloudProg.lastReviewedAt);
+        
+        // HYBRID MERGE RULES:
+        // 1. Recent activity (< 24hrs) → Take more recent
+        // 2. Significant time gap (> 7 days) → Take more recent
+        // 3. Similar timing → Merge intelligently
+        
+        if (timeDiff <= 1) {
+          // Recent activity - take the one with more reviews or more recent
+          if (cloudProg.reviewCount > localProg.reviewCount ||
+              (cloudProg.reviewCount == localProg.reviewCount &&
+               _isMoreRecent(cloudProg.lastReviewedAt, localProg.lastReviewedAt))) {
+            mergedProgress[cloudProg.flashcardId] = cloudProg.copyWith(userId: userId);
+          }
+          // Otherwise keep local
+        } else if (timeDiff > 7) {
+          // Major time gap - take more recent
+          if (_isMoreRecent(cloudProg.lastReviewedAt, localProg.lastReviewedAt)) {
+            mergedProgress[cloudProg.flashcardId] = cloudProg.copyWith(userId: userId);
+          }
+          // Otherwise keep local
+        } else {
+          // Intelligent merge for moderate time differences
+          mergedProgress[cloudProg.flashcardId] = FlashcardProgress(
+            id: localProg.id,
+            userId: userId,
+            flashcardId: cloudProg.flashcardId,
+            personalDifficulty: _max(localProg.personalDifficulty, cloudProg.personalDifficulty),
+            reviewCount: _max(localProg.reviewCount, cloudProg.reviewCount),
+            easeFactor: cloudProg.reviewCount > localProg.reviewCount
+                       ? cloudProg.easeFactor : localProg.easeFactor,
+            intervalDays: cloudProg.reviewCount > localProg.reviewCount
+                         ? cloudProg.intervalDays : localProg.intervalDays,
+            nextReview: _latestDate(localProg.nextReview, cloudProg.nextReview),
+            lastReviewedAt: _latestDate(localProg.lastReviewedAt, cloudProg.lastReviewedAt),
+          );
+        }
+      }
+    }
+
+    return mergedProgress.values.toList();
+  }
+
+  /// Check if date1 is more recent than date2
+  bool _isMoreRecent(DateTime? date1, DateTime? date2) {
+    if (date1 == null && date2 == null) return false;
+    if (date1 == null) return false;
+    if (date2 == null) return true;
+    return date1.isAfter(date2);
   }
 
   int _max(int a, int b) => a > b ? a : b;
