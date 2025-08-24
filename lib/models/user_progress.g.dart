@@ -37,7 +37,7 @@ Map<String, dynamic> _$UserProfileToJson(UserProfile instance) =>
       'longestStreak': instance.longestStreak,
       'totalCardsStudied': instance.totalCardsStudied,
       'lastStudyDate': instance.lastStudyDate?.toIso8601String(),
-      'settings': instance.settings,
+      'settings': instance.settings.toJson(),
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
       'lastSyncedAt': instance.lastSyncedAt.toIso8601String(),
